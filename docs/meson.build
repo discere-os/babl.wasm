@@ -33,6 +33,7 @@ if env_bin.found() and can_run_host_binaries
       babl_html_dump
     ],
     capture: true,
+    depends: babl_extensions,
   )
 else
   warning('Cannot create babl reference in this environment')
