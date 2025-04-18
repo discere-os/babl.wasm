@@ -23,25 +23,25 @@ version_script = custom_target('babl.map',
 )
 
 # Linker arguments
-if cc.links('', 
-    name: '-Wl,--version-script', 
-    args: ['-shared', '-Wl,--version-script=' 
+if cc.links('',
+    name: '-Wl,--version-script',
+    args: ['-shared', '-Wl,--version-script='
       + meson.current_source_dir() / 'test-gnu.map']
   )
   babl_link_args = [
     '-Wl,--version-script=' + version_script[0].full_path()
   ]
 elif cc.get_id() == 'clang'
-  if cc.links('', 
-      name: '-Wl,-exported_symbols_list', 
-      args: ['-Wl,-exported_symbols_list', 
+  if cc.links('',
+      name: '-Wl,-exported_symbols_list',
+      args: ['-Wl,-exported_symbols_list',
         meson.current_source_dir() / 'test-clang.map']
     )
     # Clang on Darwin
     babl_link_args = [
       '-Wl,-exported_symbols_list', version_script[1].full_path()
     ]
-  else  
+  else
     # Clang on msys/mingw
     babl_link_args = []
   endif

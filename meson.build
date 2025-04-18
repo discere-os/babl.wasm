@@ -147,7 +147,7 @@ build_platform_win32 = (build_os.startswith('mingw') or
 
 # Only try to run compiled programs if native compile or cross-compile
 # and have exe wrapper. If we don't need a wrapper (e.g. 32 bit build in
-# 64-bit environment) then set proprty has_exe_wrapper=true in cross 
+# 64-bit environment) then set proprty has_exe_wrapper=true in cross
 # file
 can_run_host_binaries = meson.can_run_host_binaries()
 

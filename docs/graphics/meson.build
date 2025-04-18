@@ -5,10 +5,8 @@ graphic_files = [
   'babl-a4poster.svg',
 ]
 
-graphic_files_install = []
-
 # Copy index.html to build
-graphic_files_install += configure_file(
+configure_file(
   input:  'index.html',
   output: '@PLAINNAME@',
   copy: true
@@ -16,7 +14,7 @@ graphic_files_install += configure_file(
 
 foreach _file : graphic_files
   # Copy svg files to build
-  graphic_files_install += configure_file(
+  configure_file(
     input:  _file,
     output: '@PLAINNAME@',
     copy: true
@@ -26,7 +24,7 @@ endforeach
 if rsvg_convert_bin.found()
   foreach _file : graphic_files
     sizeinfo = _file.contains('a4poster') ? ['-w', '256'] : []
-    graphic_files_install += custom_target(_file,
+    custom_target(_file,
       input: _file,
       output: '@BASENAME@.png',
       command: [

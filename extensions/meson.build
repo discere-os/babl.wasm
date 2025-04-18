@@ -70,8 +70,9 @@ extensions = [
   ['ycbcr', sse2_cflags],
 ]
 
+babl_extensions = []
 foreach ext : extensions
-  shared_library(
+  babl_extensions += shared_library(
     ext[0],
     ext[0] + '.c',
     c_args: [ext[1], '-DBABL_SIMDFREE' ],

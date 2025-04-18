@@ -1,3 +1,4 @@
+
 subdir('graphics')
 
 xml_insert = find_program(
@@ -17,25 +18,26 @@ babl_css = configure_file(
   copy: true
 )
 
-index_html_tmp_env = [
+reference_tmp_env = [
   'BABL_PATH=' + babl_extensions_build_dir,
 ]
 
 # Don't build babl ref if cannot run compiled objects in this env
 if env_bin.found() and can_run_host_binaries
-  index_html_tmp = custom_target('index.html.tmp',
+  reference_tmp = custom_target('reference_tmp',
     input : babl_html_dump,
-    output:'index.html.tmp',
+    output:'Reference.tmp',
     command: [
       env_bin,
-      index_html_tmp_env,
+      reference_tmp_env,
       babl_html_dump
     ],
     capture: true,
+    depends: babl_extensions,
   )
 else
   warning('Cannot create babl reference in this environment')
-  index_html_tmp = 'index.html.tmp'
+  reference_tmp = 'Reference.tmp'
 endif
 
 TOC = files('toc')
@@ -47,7 +49,7 @@ html_files = {
     ['TOC',     TOC],
   ]],
   'Reference': ['auto', [
-    ['BablBase', index_html_tmp],
+    ['BablBase', reference_tmp],
     ['TOC',      TOC],
   ]],
   'CMYK': ['auto', [
