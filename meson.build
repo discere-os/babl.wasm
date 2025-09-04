@@ -514,7 +514,12 @@ if git_bin.found() and run_command(
     )
   endif
 else
-  git_version_h = files('git-version.h')
+  git_version_h = vcs_tag(
+    input : 'git-version.h.in',
+    output: 'git-version.h',
+    replace_string: '@BABL_GIT_VERSION@',
+    fallback: '@0@'.format(version),
+  )
 endif
 
 ################################################################################
