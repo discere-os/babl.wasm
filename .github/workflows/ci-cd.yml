@@ -1,0 +1,195 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [wasm, main, develop]
+    tags: ['v*']
+  pull_request:
+    branches: [wasm]
+
+env:
+  EMSCRIPTEN_VERSION: '4.0.14'
+
+jobs:
+  test:
+    name: Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.x
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSCRIPTEN_VERSION }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update && sudo apt-get install -y build-essential cmake
+
+      - name: Build WASM modules
+        run: |
+          ./build-dual.sh all
+          ls -la install/wasm/
+
+      - name: Run tests
+        run: deno task test
+
+      - name: Run benchmarks
+        run: deno task bench --no-check
+
+      - name: Type checking
+        run: deno task check
+
+      - name: Code formatting check
+        run: deno task fmt --check
+
+      - name: Linting check
+        run: deno task lint
+
+  build:
+    name: Build Distribution
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.x
+
+      - name: Setup Emscripten
+        uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: ${{ env.EMSCRIPTEN_VERSION }}
+
+      - name: Build WASM modules
+        run: |
+          ./build-dual.sh all
+
+      - name: Generate build summary
+        run: |
+          echo "## 📦 Build Results" >> $GITHUB_STEP_SUMMARY
+          echo "| Module | Size | Compressed |" >> $GITHUB_STEP_SUMMARY
+          echo "|--------|------|------------|" >> $GITHUB_STEP_SUMMARY
+
+          for file in install/wasm/*; do
+            if [[ -f "$file" ]]; then
+              SIZE=$(stat -c%s "$file")
+              COMPRESSED=$(gzip -c "$file" | wc -c)
+              echo "| $(basename $file) | $(numfmt --to=iec $SIZE) | $(numfmt --to=iec $COMPRESSED) |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: babl-wasm-dist
+          path: |
+            install/wasm/
+            deno.json
+          retention-days: 7
+
+  deploy-cloudflare-release:
+    name: Deploy Release to Cloudflare R2
+    runs-on: ubuntu-latest
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: babl-wasm-dist
+          path: ./
+
+      - name: Set release version
+        id: release-version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Deploy versioned to R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            r2 object put discere-os-wasm-production/babl/${{ steps.release-version.outputs.VERSION }}/side/babl-side.wasm --file=install/wasm/babl-side.wasm
+            r2 object put discere-os-wasm-production/babl/${{ steps.release-version.outputs.VERSION }}/main/babl-main.js --file=install/wasm/babl-main.js
+            r2 object put discere-os-wasm-production/babl/${{ steps.release-version.outputs.VERSION }}/main/babl-main.wasm --file=install/wasm/babl-main.wasm
+            r2 object put discere-os-wasm-production/babl/${{ steps.release-version.outputs.VERSION }}/deno.json --file=deno.json
+
+      - name: Update latest in R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            r2 object put discere-os-wasm-production/babl/latest/side/babl-side.wasm --file=install/wasm/babl-side.wasm
+            r2 object put discere-os-wasm-production/babl/latest/main/babl-main.js --file=install/wasm/babl-main.js
+            r2 object put discere-os-wasm-production/babl/latest/main/babl-main.wasm --file=install/wasm/babl-main.wasm
+            r2 object put discere-os-wasm-production/babl/latest/deno.json --file=deno.json
+
+      - name: Verify deployment
+        run: |
+          sleep 15
+          curl -f "https://wasm.discere.cloud/babl@${{ steps.release-version.outputs.VERSION }}/deno.json"
+
+  deploy-cloudflare-snapshot:
+    name: Deploy Snapshot to Cloudflare R2
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/wasm' && github.event_name == 'push'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: babl-wasm-dist
+          path: ./
+
+      - name: Set snapshot version
+        id: version
+        run: echo "VERSION=sha-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Deploy snapshot to R2
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: |
+            r2 object put discere-os-wasm-production/babl/${{ steps.version.outputs.VERSION }}/side/babl-side.wasm --file=install/wasm/babl-side.wasm
+            r2 object put discere-os-wasm-production/babl/${{ steps.version.outputs.VERSION }}/main/babl-main.js --file=install/wasm/babl-main.js
+            r2 object put discere-os-wasm-production/babl/${{ steps.version.outputs.VERSION }}/main/babl-main.wasm --file=install/wasm/babl-main.wasm
+            r2 object put discere-os-wasm-production/babl/${{ steps.version.outputs.VERSION }}/deno.json --file=deno.json
+
+  publish-jsr:
+    name: Publish to JSR
+    runs-on: ubuntu-latest
+    needs: [deploy-cloudflare-release]
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: 2.x
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: babl-wasm-dist
+          path: ./
+
+      - name: Publish to JSR
+        run: deno publish
