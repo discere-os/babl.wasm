@@ -5,6 +5,8 @@ WebAssembly port of BABL pixel format conversion library with SIMD optimization 
 [![CI/CD](https://github.com/discere-os/discere-nucleus/actions/workflows/babl-wasm-ci.yml/badge.svg)](https://github.com/discere-os/discere-nucleus/actions)
 [![JSR](https://jsr.io/badges/@discere-os/babl.wasm)](https://jsr.io/@discere-os/babl.wasm)
 [![npm version](https://badge.fury.io/js/@discere-os%2Fbabl.wasm.svg)](https://badge.fury.io/js/@discere-os%2Fbabl.wasm)
+[![License](https://img.shields.io/badge/License-LGPL--3.0-blue.svg)](COPYING)
+[![Status](https://img.shields.io/badge/status-alpha-orange.svg)](https://github.com/discere-os/discere-nucleus)
 
 ## Features
 
